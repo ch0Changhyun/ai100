@@ -7,7 +7,8 @@ import pandas as pd
 from collections import defaultdict
 from PIL import Image
 
-os.environ["OPENAI_API_KEY"] = st.secrets['API_KEY']
+os.environ["OPENAI_API_KEY"] = "sk-proj-kWtbJHeXdWSPrtHw26ULT3BlbkFJK3BxsGziXsSR3zAnQG1q"
+
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 CSV_FILENAME = 'videos1.csv'
@@ -94,7 +95,10 @@ def main():
     user_id = st.text_input('사용자 ID를 입력하세요')
 
     if user_id:
-        if 'videos' not in st.session_state:
+        if 'videos' not in st.session_state or st.session_state.user_id != user_id:
+            # Clear the previous session state to avoid displaying videos of the previous user
+            st.session_state.clear()
+            st.session_state.user_id = user_id
             st.session_state.videos = get_videos_by_user(user_id, CSV_FILENAME)
 
         if st.session_state.videos:
@@ -104,6 +108,8 @@ def main():
             selected_categories = st.multiselect('카테고리를 선택하세요', all_categories, default=all_categories)
 
             filtered_videos = [video for video in st.session_state.videos if any(category in selected_categories for category in video['categories'])]
+
+            cols = st.columns(3)  # Define columns outside the loop
 
             for i, video in enumerate(filtered_videos):
                 if i % 3 == 0:
@@ -120,7 +126,6 @@ def main():
                     st.image(thumbnail_url, use_column_width=True)
                     st.caption(f"[{video_title}]({video_url})")
                     st.write(f"{video_length} | {video_category}")
-
 
         else:
             st.warning('동영상이 없어요. 추가하세요!')
@@ -277,5 +282,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-                           
