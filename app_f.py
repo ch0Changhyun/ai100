@@ -7,8 +7,7 @@ import pandas as pd
 from collections import defaultdict
 from PIL import Image
 
-os.environ["OPENAI_API_KEY"] = "sk-proj-kWtbJHeXdWSPrtHw26ULT3BlbkFJK3BxsGziXsSR3zAnQG1q"
-
+os.environ["OPENAI_API_KEY"] = st.secrets['API_KEY']
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 CSV_FILENAME = 'videos1.csv'
@@ -32,6 +31,7 @@ def get_videos_by_user(user_id, csv_filename):
             for row in reader:
                 if row['user_id'] == user_id:
                     row['categories'] = row['category'].split(',')
+                    row['length'] = int(row['length'])  # Ensure the length is converted to int
                     videos.append(row)
     except FileNotFoundError:
         pass
@@ -62,10 +62,11 @@ def load_videos(csv_filename, user_id):
         videos = pd.read_csv(csv_filename)
         videos = videos[videos['user_id'] == user_id]
         videos['categories'] = videos['category'].apply(lambda x: x.split(','))
+        videos['length'] = videos['length'].astype(int)  # Convert length to int
         return videos
     except FileNotFoundError:
         return pd.DataFrame()
-    
+
 # 시간을 'NN분 NN초' 형식으로 변환하는 함수
 def format_time(seconds):
     seconds = int(seconds)  # 초 값을 정수로 변환
@@ -92,17 +93,22 @@ def AL_video(output_string):
 def main():
     st.title('유튜브 동영상 관리 및 운동 계획 생성기')
 
-    user_id = st.text_input('사용자 ID를 입력하세요')
+    # 'user_id' 초기화
+    if 'user_id' not in st.session_state:
+        st.session_state.user_id = None
 
+    # 예시로 `user_id`를 설정합니다.
+    user_id = st.text_input('사용자 ID를 입력하세요')
     if user_id:
+        st.session_state.user_id = user_id
+
+    if st.session_state.user_id:
         if 'videos' not in st.session_state or st.session_state.user_id != user_id:
             # Clear the previous session state to avoid displaying videos of the previous user
-            st.session_state.clear()
-            st.session_state.user_id = user_id
-            st.session_state.videos = get_videos_by_user(user_id, CSV_FILENAME)
+            st.session_state.videos = get_videos_by_user(st.session_state.user_id, CSV_FILENAME)
 
         if st.session_state.videos:
-            st.subheader(f'{user_id}의 동영상 리스트')
+            st.subheader(f'{st.session_state.user_id}의 동영상 리스트')
 
             all_categories = sorted({category for video in st.session_state.videos for category in video['categories']})
             selected_categories = st.multiselect('카테고리를 선택하세요', all_categories, default=all_categories)
@@ -182,7 +188,7 @@ def main():
         st.write('---')
         st.subheader('운동 계획 생성')
 
-        videos = load_videos(CSV_FILENAME, user_id)
+        videos = load_videos(CSV_FILENAME, st.session_state.user_id)
 
         if videos.empty:
             st.warning('해당 사용자 ID의 동영상이 없습니다.')
@@ -225,7 +231,7 @@ def main():
 
                         all_videos.append((day, selected_videos))
 
-                        
+
                         day_output = (
                             f"Day {day}\n" + 
                             "\n".join([f"{video['title']} ({video['length'] // 60}분) - {video['category']}" for video in selected_videos])
@@ -233,17 +239,7 @@ def main():
                         day_outputs.append(day_output)
 
                     st.success(f'총 {total_time_seconds // 60}분의 운동 계획이 생성되었습니다.')
-                    # for day, videos in all_videos:
-                    #     st.subheader(f'Day {day}')
-                    #     for video in videos:
-                    #         st.write(f"{video['title']} ({video['length'] // 60} 분)")
-                    #         st.write(f"[동영상 링크]({video['url']})")
 
-                    # CSS 스타일 정의
-                    # CSS 스타일 정의
-                    # CSS 스타일 정의
-                    # CSS 스타일 정의
-                    # 동영상 리스트 출력
                     for day, videos in all_videos:
                         st.subheader(f'Day {day}')
                         for i, video in enumerate(videos):
@@ -254,7 +250,6 @@ def main():
                             thumbnail_url = f"https://img.youtube.com/vi/{video_id}/0.jpg"
                             video_title = video['title']
                             video_url = video['url']
-                            # video_category = video['category']
                             video_length = format_time(video['length'])
 
                             with cols[i % 3]:
@@ -265,20 +260,20 @@ def main():
                     output_string = ",".join(day_outputs)
 
                     # AI 아이콘 이미지 불러오기
-                    ai_icon = Image.open('img.png')  # 'ai_icon.png'는 AI 아이콘 이미지 파일의 경로입니다.
+                    ai_icon = Image.open('img.png')
 
                     # AI 아이콘 출력
                     st.image(ai_icon, width=100)
                     with st.spinner('나는 당신의 운동비서 플랜을 분석 중이니 잠시만 기다려 주세요'):
-                      abc = AL_video(output_string)
-                    
-                    st.markdown("""
+                        abc = AL_video(output_string)
+
+                    st.markdown(f"""
                     <div style="border: 2px solid pink; padding: 10px; border-radius: 10px;">
                         <p>안녕하세요, AI 비서입니다.</p>
                         <p>아래는 제가 분석한 홈트 일정입니다:</p>
-                        <p style="font-weight: bold;">{}</p>
+                        <p style="font-weight: bold;">{abc}</p>
                     </div>
-                    """.format(abc), unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
 
 if __name__ == '__main__':
     main()
